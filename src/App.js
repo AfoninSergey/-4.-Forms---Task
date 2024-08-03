@@ -1,5 +1,7 @@
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
 import { useEffect, useRef } from 'react';
-import { useStore } from './hooks/useStore';
 import { EMAIL_REGEXP, PASSWORD_REGEXP } from './constans/constans';
 import styles from './App.module.css';
 
@@ -7,70 +9,59 @@ const sendFormData = (formData) => {
 	console.log(formData);
 };
 
+const fieldsSchema = yup.object().shape({
+	email: yup
+		.string()
+		.required('Заполните все поля!')
+		.matches(EMAIL_REGEXP, 'Введите корретный e-mail адрес!'),
+	password: yup
+		.string()
+		.required('Заполните все поля!')
+		.matches(
+			PASSWORD_REGEXP,
+			'Пароль может содержать только латинские буквы, цифры и символы \\w!@#$%^&*+-',
+		)
+		.max(20, 'Пароль не должен быть длиннее 20 символов')
+		.min(5, 'Пароль должен быть не короче 5 символов'),
+	passwordAgain: yup
+		.string()
+		.oneOf([yup.ref('password'), null], 'Пароли не совпадают!'),
+});
 
 export const App = () => {
-	const { getState, updateState, resetState: resetForm } = useStore();
-	const { email, password, passwordAgain, validationError } = getState();
+	const {
+		reset,
+		register,
+		handleSubmit,
+		formState: { errors, isValid },
+	} = useForm({
+		defaultValues: {
+			email: '',
+			password: '',
+			passwordAgain: '',
+		},
+		resolver: yupResolver(fieldsSchema),
+	});
 
 	const sendButton = useRef();
-	let errorMessage = null;
+
+	const validationError =
+		errors.email?.message ||
+		errors.password?.message ||
+		errors.passwordAgain?.message;
+
+	const onSubmit = (formData) => {
+		sendFormData(formData);
+		reset();
+		sendButton.current.blur();
+	};
 
 	useEffect(() => {
-		if (email.length !== 0 &&
-			password.length !== 0 &&
-			passwordAgain.length !== 0 &&
-			EMAIL_REGEXP.test(email) &&
-			password.length >= 5 &&
-			passwordAgain.length >= 5 &&
-			password === passwordAgain
-		) sendButton.current.focus()
-	}, [email, password, passwordAgain]);
-
-	const onSubmit = (event) => {
-		event.preventDefault();
-		sendFormData(getState());
-		sendButton.current.blur()
-		resetForm();
-	};
-
-	const onChange = ({ target: { name, value, type } }) => {
-		if (type === 'password' && !PASSWORD_REGEXP.test(value)) {
-			errorMessage =
-				'Пароль может содержать только латинские буквы, цифры и символы \\w!@#$%^&*+-';
-		} else if (type === 'password' && value.length > 20) {
-			errorMessage = 'Пароль не должен быть длиннее 20 символов';
-		}
-
-		updateState({
-			[name]: value,
-			validationError: errorMessage,
-		});
-
-	};
-
-	const onFocus = () => updateState({ validationError: null });
-
-	const validateFormForSend = () => {
-		if (
-			email.length === 0 ||
-			password.length === 0 ||
-			passwordAgain.length === 0
-		) {
-			errorMessage = 'Заполните все поля!';
-		} else if (!EMAIL_REGEXP.test(email)) {
-			errorMessage = 'Введите корретный e-mail адрес!';
-		} else if (password.length < 5 || passwordAgain.length < 5) {
-			errorMessage = 'Пароль не должен быть короче 5 символов';
-		} else if (password !== passwordAgain) {
-			errorMessage = 'Пароли не совпадают!';
-		}
-		updateState({ validationError: errorMessage });
-	};
-
-
+		if (isValid) sendButton.current.focus();
+	}, [isValid]);
 
 	return (
-		<form className={styles.form} onSubmit={onSubmit}>
+		<form noValidate className={styles.form} onSubmit={handleSubmit(onSubmit)}>
 			{validationError && (
 				<div className={styles.validationError}>{validationError}</div>
 			)}
@@ -78,31 +69,24 @@ export const App = () => {
 				type="email"
 				name="email"
 				placeholder="Ваш e-mail"
-				value={email}
-				onFocus={onFocus}
-				onChange={onChange}
+				{...register('email')}
 			/>
 			<input
 				type="password"
 				name="password"
 				placeholder="Пароль"
-				value={password}
-				onFocus={onFocus}
-				onChange={onChange}
+				{...register('password')}
 			/>
 			<input
 				type="password"
 				name="passwordAgain"
 				placeholder="Пароль ещё раз"
-				value={passwordAgain}
-				onFocus={onFocus}
-				onChange={onChange}
+				{...register('passwordAgain')}
 			/>
 			<button
-				disabled={validationError !== null}
+				disabled={!!validationError}
 				type="submit"
 				ref={sendButton}
-				onClick={validateFormForSend}
 			>
 				Зарегистрироваться
 			</button>
